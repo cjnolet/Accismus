@@ -16,8 +16,7 @@
  */
 package accismus.impl;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -27,10 +26,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-import org.apache.curator.framework.CuratorFramework;
-import org.apache.curator.framework.CuratorFrameworkFactory;
-import org.apache.curator.retry.ExponentialBackoffRetry;
-import org.junit.Test;
+import static org.junit.Assert.*;
 
 /**
  * 
@@ -121,21 +117,20 @@ public class OracleIT extends Base {
     tpool.shutdown();
   }
 
-
   @Test
   public void failoverTest() throws Exception {
 
-    Thread.sleep(1000); // make sure first server becomes the leader
+
+	  while(!oserver.isConnected()) Thread.sleep(100);
+
     OracleServer oserver2 = createOracle(9914);
     OracleServer oserver3 = createOracle(9915);
 
     oserver2.start();
-    oserver3.start();
+	  while(!oserver2.isConnected()) Thread.sleep(100);
 
-	  Thread.sleep(3000);
-
-    CuratorFramework curatorFramework = CuratorFrameworkFactory.newClient(instance.getZooKeepers(), new ExponentialBackoffRetry(1000, 10));
-    curatorFramework.start();
+	  oserver3.start();
+		while(!oserver3.isConnected()) Thread.sleep(100);
 
     OracleClient client = OracleClient.getInstance(config);
 
@@ -145,16 +140,51 @@ public class OracleIT extends Base {
       assertEquals(i, timestamp);
     }
 
+
+	  assertTrue(client.getOracle().endsWith("9913"));
+
     oserver.stop();
 
-    Thread.sleep(1000);
+    Thread.sleep(2000);
     assertEquals(1000, client.getTimestamp());
+	  assertTrue(client.getOracle().endsWith("9914"));
 
     oserver2.stop();
 
-    Thread.sleep(1000);
+    Thread.sleep(2000);
     assertEquals(2000, client.getTimestamp());
+	  assertTrue(client.getOracle().endsWith("9915"));
 
     oserver3.stop();
   }
+
+	@Test
+	public void singleOracle_goesAwayAndComesBack() throws Exception {
+
+		while(!oserver.isConnected()) Thread.sleep(100);
+
+		OracleClient client = OracleClient.getInstance(config);
+
+		long timestamp;
+		for(long i = 0; i <= 5; i++) {
+			timestamp = client.getTimestamp();
+			assertEquals(i, timestamp);
+		}
+
+		oserver.stop();
+
+	  Thread.sleep(2000);
+
+		assertNull(client.getOracle());
+
+		oserver.start();
+
+		while(!oserver.isConnected()) Thread.sleep(100);
+
+		assertEquals(1000, client.getTimestamp());
+
+		assertTrue(client.getOracle().endsWith("9913"));
+
+		oserver.stop();
+	}
 }

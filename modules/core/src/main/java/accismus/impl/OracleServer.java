@@ -16,10 +16,12 @@
  */
 package accismus.impl;
 
-import java.net.InetSocketAddress;
-
+import accismus.impl.support.CuratorCnxnListener;
+import accismus.impl.thrift.OracleService;
+import com.google.common.annotations.VisibleForTesting;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
+import org.apache.curator.framework.imps.CuratorFrameworkState;
 import org.apache.curator.framework.recipes.leader.LeaderSelector;
 import org.apache.curator.framework.recipes.leader.LeaderSelectorListenerAdapter;
 import org.apache.curator.retry.ExponentialBackoffRetry;
@@ -33,7 +35,7 @@ import org.apache.zookeeper.data.Stat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import accismus.impl.thrift.OracleService;
+import java.net.InetSocketAddress;
 
 
 /**
@@ -54,11 +56,13 @@ public class OracleServer extends LeaderSelectorListenerAdapter implements Oracl
 
   private LeaderSelector leaderSelector;
   private CuratorFramework curatorFramework;
-  
+	private CuratorCnxnListener cnxnListener;
+
   private static Logger log = LoggerFactory.getLogger(OracleServer.class);
 
   public OracleServer(Configuration config) throws Exception {
     this.config = config;
+	  this.cnxnListener = new CuratorCnxnListener();
   }
   
   private void allocateTimestamp() throws Exception {
@@ -110,6 +114,11 @@ public class OracleServer extends LeaderSelectorListenerAdapter implements Oracl
       throw new TException(e);
     }
   }
+
+	@VisibleForTesting
+	public boolean isConnected() {
+		return cnxnListener.isConnected();
+	}
   
   private InetSocketAddress startServer() throws TTransportException {
     
@@ -147,10 +156,14 @@ public class OracleServer extends LeaderSelectorListenerAdapter implements Oracl
     InetSocketAddress addr = startServer();
 
     curatorFramework = CuratorFrameworkFactory.newClient(config.getConnector().getInstance().getZooKeepers(), new ExponentialBackoffRetry(1000, 10));
+	  curatorFramework.getConnectionStateListenable().addListener(cnxnListener);
     curatorFramework.start();
+
+	  while(!cnxnListener.isConnected())  Thread.sleep(200);
 
     leaderSelector = new LeaderSelector(curatorFramework, config.getZookeeperRoot() + Constants.Zookeeper.ORACLE_SERVER, this);
     leaderSelector.setId(addr.getHostName() + ":" + addr.getPort());
+	  leaderSelector.autoRequeue();
     leaderSelector.start();
 
     log.info("Listening " + addr);
@@ -162,9 +175,14 @@ public class OracleServer extends LeaderSelectorListenerAdapter implements Oracl
     if (started) {
       server.stop();
       serverThread.join();
-      leaderSelector.close();
-      curatorFramework.close();
+
+	    if(curatorFramework.getState().equals(CuratorFrameworkState.STARTED)) {
+
+		    leaderSelector.close();
+		    curatorFramework.close();
+	    }
       started = false;
+	    log.debug("Oracle server is stopped.");
     }
   }
 

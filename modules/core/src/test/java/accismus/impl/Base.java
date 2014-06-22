@@ -16,12 +16,12 @@
  */
 package accismus.impl;
 
-import java.io.File;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Properties;
-import java.util.concurrent.atomic.AtomicInteger;
-
+import accismus.api.Column;
+import accismus.api.Observer;
+import accismus.api.config.ObserverConfiguration;
+import accismus.api.config.OracleProperties;
+import accismus.api.config.TransactionConfiguration;
+import accismus.format.AccismusFormatter;
 import org.apache.accumulo.core.client.Connector;
 import org.apache.accumulo.core.client.Instance;
 import org.apache.accumulo.core.client.Scanner;
@@ -34,12 +34,11 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
-import accismus.api.Column;
-import accismus.api.Observer;
-import accismus.api.config.ObserverConfiguration;
-import accismus.api.config.OracleProperties;
-import accismus.api.config.TransactionConfiguration;
-import accismus.format.AccismusFormatter;
+import java.io.File;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Properties;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * 
@@ -133,7 +132,7 @@ public class Base {
   public void tearDown() throws Exception {
     conn.tableOperations().delete(table);
     oserver.stop();
-    config.getSharedResources().close();
+	      config.getSharedResources().close();
   }
 
   protected void printTable() throws Exception {
