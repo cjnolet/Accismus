@@ -37,11 +37,10 @@ import org.slf4j.LoggerFactory;
 
 import java.net.InetSocketAddress;
 
-
 /**
  * Oracle server is the responsible for providing incrementing logical timestamps to clients. It should never
  * give the same timestamp to two clients and it should always provide an incrementing timestamp.
- *
+ * <p/>
  * If multiple oracle servers are run, they will choose a leader and clients will automatically connect
  * to that leader. If the leader goes down, the client will automatically fail over to the next leader.
  * In the case where an oracle fails over, the next oracle will begin a new block of timestamps.
@@ -56,30 +55,30 @@ public class OracleServer extends LeaderSelectorListenerAdapter implements Oracl
 
   private LeaderSelector leaderSelector;
   private CuratorFramework curatorFramework;
-	private CuratorCnxnListener cnxnListener;
+  private CuratorCnxnListener cnxnListener;
 
   private static Logger log = LoggerFactory.getLogger(OracleServer.class);
 
   public OracleServer(Configuration config) throws Exception {
     this.config = config;
-	  this.cnxnListener = new CuratorCnxnListener();
+    this.cnxnListener = new CuratorCnxnListener();
   }
-  
+
   private void allocateTimestamp() throws Exception {
     Stat stat = new Stat();
     byte[] d = curatorFramework.getData()
-      .storingStatIn(stat)
-      .forPath(config.getZookeeperRoot() + Constants.Zookeeper.TIMESTAMP);
+        .storingStatIn(stat)
+        .forPath(config.getZookeeperRoot() + Constants.Zookeeper.TIMESTAMP);
 
     // TODO check that d is expected
     // TODO check that stil server when setting
     // TODO make num allocated variable... when a server first starts allocate a small amount... the longer it runs and the busier it is, allocate bigger blocks
-    
+
     long newMax = Long.parseLong(new String(d)) + 1000;
 
     curatorFramework.setData()
-      .withVersion(stat.getVersion())
-      .forPath(config.getZookeeperRoot() + Constants.Zookeeper.TIMESTAMP, (newMax + "").getBytes("UTF-8"));
+        .withVersion(stat.getVersion())
+        .forPath(config.getZookeeperRoot() + Constants.Zookeeper.TIMESTAMP, (newMax + "").getBytes("UTF-8"));
 
     maxTs = newMax;
 
@@ -87,10 +86,10 @@ public class OracleServer extends LeaderSelectorListenerAdapter implements Oracl
       throw new IllegalStateException();
 
   }
-  
+
   @Override
   public synchronized long getTimestamps(String id, int num) throws TException {
-    
+
     if (!started)
       throw new IllegalStateException();
 
@@ -105,7 +104,7 @@ public class OracleServer extends LeaderSelectorListenerAdapter implements Oracl
       while (num + currentTs >= maxTs) {
         allocateTimestamp();
       }
-      
+
       long tmp = currentTs;
       currentTs += num;
 
@@ -115,13 +114,13 @@ public class OracleServer extends LeaderSelectorListenerAdapter implements Oracl
     }
   }
 
-	@VisibleForTesting
-	public boolean isConnected() {
-		return cnxnListener.isConnected();
-	}
-  
+  @VisibleForTesting
+  public boolean isConnected() {
+    return cnxnListener.isConnected();
+  }
+
   private InetSocketAddress startServer() throws TTransportException {
-    
+
     InetSocketAddress addr = new InetSocketAddress(config.getOraclePort());
 
     TNonblockingServerSocket socket = new TNonblockingServerSocket(addr);
@@ -148,7 +147,7 @@ public class OracleServer extends LeaderSelectorListenerAdapter implements Oracl
     return addr;
 
   }
-  
+
   public synchronized void start() throws Exception {
     if (started)
       throw new IllegalStateException();
@@ -156,14 +155,15 @@ public class OracleServer extends LeaderSelectorListenerAdapter implements Oracl
     InetSocketAddress addr = startServer();
 
     curatorFramework = CuratorFrameworkFactory.newClient(config.getConnector().getInstance().getZooKeepers(), new ExponentialBackoffRetry(1000, 10));
-	  curatorFramework.getConnectionStateListenable().addListener(cnxnListener);
+    curatorFramework.getConnectionStateListenable().addListener(cnxnListener);
     curatorFramework.start();
 
-	  while(!cnxnListener.isConnected())  Thread.sleep(200);
+    while (!cnxnListener.isConnected())
+      Thread.sleep(200);
 
     leaderSelector = new LeaderSelector(curatorFramework, config.getZookeeperRoot() + Constants.Zookeeper.ORACLE_SERVER, this);
     leaderSelector.setId(addr.getHostName() + ":" + addr.getPort());
-	  leaderSelector.autoRequeue();
+    leaderSelector.autoRequeue();
     leaderSelector.start();
 
     log.info("Listening " + addr);
@@ -176,22 +176,23 @@ public class OracleServer extends LeaderSelectorListenerAdapter implements Oracl
       server.stop();
       serverThread.join();
 
-	    if(curatorFramework.getState().equals(CuratorFrameworkState.STARTED)) {
+      if (curatorFramework.getState().equals(CuratorFrameworkState.STARTED)) {
 
-		    leaderSelector.close();
-		    curatorFramework.close();
-	    }
+        leaderSelector.close();
+        curatorFramework.close();
+      }
       started = false;
-	    log.debug("Oracle server is stopped.");
+      log.debug("Oracle server is stopped.");
     }
   }
 
-	/**
-	 * Upon an oracle being elected the leader, it will need to adjust its starting timestamp to the last timestamp
-	 * set in zookeeper.
-	 * @param curatorFramework
-	 * @throws Exception
-	 */
+  /**
+   * Upon an oracle being elected the leader, it will need to adjust its starting timestamp to the last timestamp
+   * set in zookeeper.
+   *
+   * @param curatorFramework
+   * @throws Exception
+   */
   @Override
   public void takeLeadership(CuratorFramework curatorFramework) throws Exception {
 

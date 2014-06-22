@@ -52,251 +52,251 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public class OracleClient {
 
-	public static final Logger log = LoggerFactory.getLogger(OracleClient.class);
+  public static final Logger log = LoggerFactory.getLogger(OracleClient.class);
 
-	private Participant currentLeader;
+  private Participant currentLeader;
 
-	private static final class TimeRequest {
-		CountDownLatch cdl = new CountDownLatch(1);
-		AtomicLong timestamp = new AtomicLong();
-	}
+  private static final class TimeRequest {
+    CountDownLatch cdl = new CountDownLatch(1);
+    AtomicLong timestamp = new AtomicLong();
+  }
 
-	private class TimestampRetriever extends LeaderSelectorListenerAdapter implements Runnable, PathChildrenCacheListener {
+  private class TimestampRetriever extends LeaderSelectorListenerAdapter implements Runnable, PathChildrenCacheListener {
 
-		private LeaderSelector leaderSelector;
-		private CuratorFramework curatorFramework;
-		private OracleService.Client client;
-		private PathChildrenCache pathChildrenCache;
+    private LeaderSelector leaderSelector;
+    private CuratorFramework curatorFramework;
+    private OracleService.Client client;
+    private PathChildrenCache pathChildrenCache;
 
-		public void run() {
+    public void run() {
 
-			try {
+      try {
 
-				curatorFramework = CuratorFrameworkFactory.newClient(config.getConnector().getInstance().getZooKeepers(), new ExponentialBackoffRetry(1000, 10));
-				CuratorCnxnListener cnxnListener = new CuratorCnxnListener();
-				curatorFramework.getConnectionStateListenable().addListener(cnxnListener);
-				curatorFramework.start();
+        curatorFramework = CuratorFrameworkFactory.newClient(config.getConnector().getInstance().getZooKeepers(), new ExponentialBackoffRetry(1000, 10));
+        CuratorCnxnListener cnxnListener = new CuratorCnxnListener();
+        curatorFramework.getConnectionStateListenable().addListener(cnxnListener);
+        curatorFramework.start();
 
-				while (!cnxnListener.isConnected())
-					Thread.sleep(200);
+        while (!cnxnListener.isConnected())
+          Thread.sleep(200);
 
-				pathChildrenCache = new PathChildrenCache(curatorFramework, config.getZookeeperRoot() + Constants.Zookeeper.ORACLE_SERVER, true);
-				pathChildrenCache.getListenable().addListener(this);
-				pathChildrenCache.start();
+        pathChildrenCache = new PathChildrenCache(curatorFramework, config.getZookeeperRoot() + Constants.Zookeeper.ORACLE_SERVER, true);
+        pathChildrenCache.getListenable().addListener(this);
+        pathChildrenCache.start();
 
-				leaderSelector = new LeaderSelector(curatorFramework, config.getZookeeperRoot() + Constants.Zookeeper.ORACLE_SERVER, this);
+        leaderSelector = new LeaderSelector(curatorFramework, config.getZookeeperRoot() + Constants.Zookeeper.ORACLE_SERVER, this);
 
-				client = loadLeaderAndConnect();
-				doWork();
+        client = loadLeaderAndConnect();
+        doWork();
 
-			} catch (Exception e) {
-				e.printStackTrace();
-			}
-		}
+      } catch (Exception e) {
+        e.printStackTrace();
+      }
+    }
 
-		/**
-		 * It's possible an Oracle has gone into a bad state. We don't just want to rely on the server telling us that it's not
-		 * the leader- especially in cases where it's possible the server connection to the server could take a long time to respond.
-		 */
-		@Override
-		public void childEvent(CuratorFramework curatorFramework, PathChildrenCacheEvent pathChildrenCacheEvent) throws Exception {
+    /**
+     * It's possible an Oracle has gone into a bad state. We don't just want to rely on the server telling us that it's not
+     * the leader- especially in cases where it's possible the server connection to the server could take a long time to respond.
+     */
+    @Override
+    public void childEvent(CuratorFramework curatorFramework, PathChildrenCacheEvent pathChildrenCacheEvent) throws Exception {
 
-			if (pathChildrenCacheEvent.getType().toString().startsWith("CHILD")) {
+      if (pathChildrenCacheEvent.getType().toString().startsWith("CHILD")) {
 
-				// if we've never seen a leader, the connect method will spin gears until one is found.
-				if (currentLeader != null) {
-					synchronized (currentLeader) { // just to make sure the connect method isn't modifying the currentLeader while this one is
+        // if we've never seen a leader, the connect method will spin gears until one is found.
+        if (currentLeader != null) {
+          synchronized (currentLeader) { // just to make sure the connect method isn't modifying the currentLeader while this one is
 
-						Participant leader = leaderSelector.getLeader();  // if the leader has changed, we will be making this call again- this shouldn't happen too often unless there's a problem
+            Participant leader = leaderSelector
+                .getLeader();  // if the leader has changed, we will be making this call again- this shouldn't happen too often unless there's a problem
 
-						// if a new leader has been elected and we haven't connected to it yet, let's do that now
-						if (pathChildrenCacheEvent.getType().equals(PathChildrenCacheEvent.Type.CHILD_ADDED)) {
-							if (!(leader.getId().equals(currentLeader.getId()))) {
-								assignLeaderAndDisconnect(leader);
-							}
+            // if a new leader has been elected and we haven't connected to it yet, let's do that now
+            if (pathChildrenCacheEvent.getType().equals(PathChildrenCacheEvent.Type.CHILD_ADDED)) {
+              if (!(leader.getId().equals(currentLeader.getId()))) {
+                assignLeaderAndDisconnect(leader);
+              }
 
-					  // if a leader was removed and we've lost all leaders, close the connection and wait until a leader becomes available
-						} else if (pathChildrenCacheEvent.getType().equals(PathChildrenCacheEvent.Type.CHILD_REMOVED) && !leader.isLeader()) {
-							assignLeaderAndDisconnect(leader);
-							log.debug("There are no oracles awaiting connections");
-						}
-					}
-				}
-			}
-		}
+              // if a leader was removed and we've lost all leaders, close the connection and wait until a leader becomes available
+            } else if (pathChildrenCacheEvent.getType().equals(PathChildrenCacheEvent.Type.CHILD_REMOVED) && !leader.isLeader()) {
+              assignLeaderAndDisconnect(leader);
+              log.debug("There are no oracles awaiting connections");
+            }
+          }
+        }
+      }
+    }
 
-		private void assignLeaderAndDisconnect(Participant leader) {
-			if (currentLeader.isLeader()) {
-				currentLeader = leader;
-				if (client != null)
-					close(client);  // force reconnect logic to spin gears until leader appears
-			}
-		}
+    private void assignLeaderAndDisconnect(Participant leader) {
+      if (currentLeader.isLeader()) {
+        currentLeader = leader;
+        if (client != null)
+          close(client);  // force reconnect logic to spin gears until leader appears
+      }
+    }
 
-		private void doWork() {
+    private void doWork() {
 
-			ArrayList<TimeRequest> request = new ArrayList<TimeRequest>();
+      ArrayList<TimeRequest> request = new ArrayList<TimeRequest>();
 
-			while (true) {
+      while (true) {
 
-				try {
-					request.clear();
-					request.add(queue.take());
-					queue.drainTo(request);
+        try {
+          request.clear();
+          request.add(queue.take());
+          queue.drainTo(request);
 
-					long start;
+          long start;
 
-					while (true) {
+          while (true) {
 
-						try {
-							start = client.getTimestamps(config.getAccismusInstanceID(), request.size());
-							break;
-						} catch (TTransportException tte) {
-							close(client);
-							client = loadLeaderAndConnect();
-						} catch (TException e) {
-							e.printStackTrace();
-						}
-					}
+            try {
+              start = client.getTimestamps(config.getAccismusInstanceID(), request.size());
+              break;
+            } catch (TTransportException tte) {
+              close(client);
+              client = loadLeaderAndConnect();
+            } catch (TException e) {
+              e.printStackTrace();
+            }
+          }
 
-					for (int i = 0; i < request.size(); i++) {
-						TimeRequest tr = request.get(i);
-						tr.timestamp.set(start + i);
-						tr.cdl.countDown();
-					}
+          for (int i = 0; i < request.size(); i++) {
+            TimeRequest tr = request.get(i);
+            tr.timestamp.set(start + i);
+            tr.cdl.countDown();
+          }
 
-				} catch (Exception e) {
-					e.printStackTrace();
-				}
-			}
-		}
+        } catch (Exception e) {
+          e.printStackTrace();
+        }
+      }
+    }
 
-		private void getLeader() {
-			try {
-				currentLeader = leaderSelector.getLeader();
-			} catch (KeeperException e) {
-			} catch (Exception e) {
-				throw new RuntimeException(e);
-			}
-		}
+    private void getLeader() {
+      try {
+        currentLeader = leaderSelector.getLeader();
+      } catch (KeeperException e) {
+      } catch (Exception e) {
+        throw new RuntimeException(e);
+      }
+    }
 
-		private void loadNextLeader() {
+    private void loadNextLeader() {
 
-			getLeader();
+      getLeader();
 
-			long ebackoff = 100; // exponential backoff so we aren't hammering zookeeper.
-			while (currentLeader == null || !currentLeader.isLeader()) {
-				getLeader();
-				ebackoff *= ebackoff;
-				if (ebackoff > 5000)
-					ebackoff = 100;
+      long ebackoff = 100; // exponential backoff so we aren't hammering zookeeper.
+      while (currentLeader == null || !currentLeader.isLeader()) {
+        getLeader();
+        ebackoff *= ebackoff;
+        if (ebackoff > 5000)
+          ebackoff = 100;
 
-				try {
-					Thread.sleep(ebackoff);
-				} catch (InterruptedException e) {
-					throw new RuntimeException(e);
-				}
-			}
+        try {
+          Thread.sleep(ebackoff);
+        } catch (InterruptedException e) {
+          throw new RuntimeException(e);
+        }
+      }
 
+      log.debug("Connecting to new leader: " + currentLeader);
 
-			log.debug("Connecting to new leader: " + currentLeader);
+    }
 
-		}
+    private OracleService.Client loadLeaderAndConnect() throws IOException, KeeperException, InterruptedException, TTransportException {
+      loadNextLeader();
+      return connect();
+    }
 
-		private OracleService.Client loadLeaderAndConnect() throws IOException, KeeperException, InterruptedException, TTransportException {
-			loadNextLeader();
-			return connect();
-		}
+    private OracleService.Client connect() throws IOException, KeeperException, InterruptedException, TTransportException {
 
-		private OracleService.Client connect() throws IOException, KeeperException, InterruptedException, TTransportException {
+      log.info("Connecting to oracle at " + currentLeader.getId());
+      String[] hostAndPort = currentLeader.getId().split(":");
 
-			log.info("Connecting to oracle at " + currentLeader.getId());
-			String[] hostAndPort = currentLeader.getId().split(":");
+      String host = hostAndPort[0];
+      int port = Integer.parseInt(hostAndPort[1]);
 
-			String host = hostAndPort[0];
-			int port = Integer.parseInt(hostAndPort[1]);
+      while (true) {
+        try {
+          TTransport transport = new TFastFramedTransport(new TSocket(host, port));
+          transport.open();
+          TProtocol protocol = new TCompactProtocol(transport);
+          OracleService.Client client = new OracleService.Client(protocol);
+          return client;
+        } catch (TTransportException e) {
+          loadNextLeader();
+        } catch (Exception e) {
+          throw new RuntimeException(e);
+        }
+      }
+    }
 
-			while (true) {
-				try {
-					TTransport transport = new TFastFramedTransport(new TSocket(host, port));
-					transport.open();
-					TProtocol protocol = new TCompactProtocol(transport);
-					OracleService.Client client = new OracleService.Client(protocol);
-					return client;
-				} catch (TTransportException e) {
-					loadNextLeader();
-				} catch (Exception e) {
-					throw new RuntimeException(e);
-				}
-			}
-		}
+    private void close(OracleService.Client client) {
+      // TODO is this correct way to close?
+      client.getInputProtocol().getTransport().close();
+      client.getOutputProtocol().getTransport().close();
+    }
 
-		private void close(OracleService.Client client) {
-			// TODO is this correct way to close?
-			client.getInputProtocol().getTransport().close();
-			client.getOutputProtocol().getTransport().close();
-		}
+    /**
+     * NOTE: This isn't competing for leadership, so it doesn't need to be started.
+     */
+    @Override
+    public void takeLeadership(CuratorFramework curatorFramework) throws Exception {
+    }
+  }
 
-		/**
-		 * NOTE: This isn't competing for leadership, so it doesn't need to be started.
-		 */
-		@Override
-		public void takeLeadership(CuratorFramework curatorFramework) throws Exception {
-		}
-	}
+  private static Map<String,OracleClient> clients = new HashMap<String,OracleClient>();
 
-	private static Map<String,OracleClient> clients = new HashMap<String,OracleClient>();
+  private Configuration config;
+  private ArrayBlockingQueue<TimeRequest> queue = new ArrayBlockingQueue<TimeRequest>(1000);
 
-	private Configuration config;
-	private ArrayBlockingQueue<TimeRequest> queue = new ArrayBlockingQueue<TimeRequest>(1000);
+  private OracleClient(Configuration config) throws Exception {
+    this.config = config;
 
-	private OracleClient(Configuration config) throws Exception {
-		this.config = config;
+    // TODO make thread exit if idle for a bit, and start one when request arrives
+    Thread thread = new Thread(new TimestampRetriever());
+    thread.setDaemon(true);
+    thread.start();
+  }
 
-		// TODO make thread exit if idle for a bit, and start one when request arrives
-		Thread thread = new Thread(new TimestampRetriever());
-		thread.setDaemon(true);
-		thread.start();
-	}
+  public long getTimestamp() throws Exception {
+    TimeRequest tr = new TimeRequest();
+    queue.add(tr);
+    tr.cdl.await();
+    return tr.timestamp.get();
+  }
 
-	public long getTimestamp() throws Exception {
-		TimeRequest tr = new TimeRequest();
-		queue.add(tr);
-		tr.cdl.await();
-		return tr.timestamp.get();
-	}
+  /**
+   * Return the oracle that the current client is connected to.
+   *
+   * @return
+   */
+  public synchronized String getOracle() {
+    return currentLeader != null && !currentLeader.getId().equals("") ? currentLeader.getId() : null;
+  }
 
-	/**
-	 * Return the oracle that the current client is connected to.
-	 *
-	 * @return
-	 */
-	public synchronized String getOracle() {
-		return currentLeader != null && !currentLeader.getId().equals("") ? currentLeader.getId() : null;
-	}
+  /**
+   * Create an instance of an OracleClient and cache it by the Accismus instance id`
+   *
+   * @param config
+   * @return
+   */
+  public static synchronized OracleClient getInstance(Configuration config) {
+    // this key differintiates between different instances of Accumulo and Accismus
+    String key = config.getAccismusInstanceID();
 
-	/**
-	 * Create an instance of an OracleClient and cache it by the Accismus instance id`
-	 *
-	 * @param config
-	 * @return
-	 */
-	public static synchronized OracleClient getInstance(Configuration config) {
-		// this key differintiates between different instances of Accumulo and Accismus
-		String key = config.getAccismusInstanceID();
+    OracleClient client = clients.get(key);
 
-		OracleClient client = clients.get(key);
+    if (client == null) {
+      try {
+        client = new OracleClient(config);
+      } catch (Exception e) {
+        throw new RuntimeException(e);
+      }
+      clients.put(key, client);
+    }
 
-		if (client == null) {
-			try {
-				client = new OracleClient(config);
-			} catch (Exception e) {
-				throw new RuntimeException(e);
-			}
-			clients.put(key, client);
-		}
-
-		return client;
-	}
+    return client;
+  }
 
 }

@@ -29,45 +29,45 @@ import java.util.concurrent.Executors;
 import static org.junit.Assert.*;
 
 /**
- * 
+ *
  */
 public class OracleIT extends Base {
-  
+
   @Test
   public void testRestart() throws Exception {
     OracleClient client = OracleClient.getInstance(config);
-    
+
     long ts1 = client.getTimestamp();
     long ts2 = client.getTimestamp();
 
     oserver.stop();
     oserver.start();
-    
+
     long ts3 = client.getTimestamp();
     long ts4 = client.getTimestamp();
-    
+
     assertTrue(ts1 + " " + ts2, ts1 < ts2);
     assertTrue(ts2 + " " + ts3, ts2 < ts3);
     assertTrue(ts3 + " " + ts4, ts3 < ts4);
   }
-  
+
   private static class TimestampFetcher implements Runnable {
     private int numToGet;
     private Configuration config;
     private List<Long> output;
     private CountDownLatch cdl;
-    
+
     TimestampFetcher(int numToGet, Configuration config, List<Long> output, CountDownLatch cdl) {
       this.numToGet = numToGet;
       this.config = config;
       this.output = output;
       this.cdl = cdl;
     }
-    
+
     @Override
     public void run() {
       OracleClient oclient = OracleClient.getInstance(config);
-      
+
       for (int i = 0; i < numToGet; i++) {
         try {
           output.add(oclient.getTimestamp());
@@ -75,25 +75,25 @@ public class OracleIT extends Base {
           e.printStackTrace();
         }
       }
-      
+
       cdl.countDown();
     }
   }
-  
+
   @Test
   public void threadTest() throws Exception {
-    
+
     int numThreads = 20;
     int numTimes = 100;
 
     List<Long> output = Collections.synchronizedList(new ArrayList<Long>());
     ExecutorService tpool = Executors.newFixedThreadPool(numThreads);
     CountDownLatch cdl = new CountDownLatch(numThreads);
-    
+
     for (int i = 0; i < numThreads; i++) {
       tpool.execute(new TimestampFetcher(numTimes, config, output, cdl));
     }
-    
+
     cdl.await();
 
     TreeSet<Long> ts1 = new TreeSet<Long>(output);
@@ -102,89 +102,92 @@ public class OracleIT extends Base {
 
     cdl = new CountDownLatch(numThreads);
     output.clear();
-    
+
     for (int i = 0; i < numThreads; i++) {
       tpool.execute(new TimestampFetcher(numTimes, config, output, cdl));
     }
-    
+
     cdl.await();
 
     TreeSet<Long> ts2 = new TreeSet<Long>(output);
-    
+
     assertEquals(numThreads * numTimes, ts2.size());
     assertTrue(ts1.last() < ts2.first());
-    
+
     tpool.shutdown();
   }
 
   @Test
   public void failoverTest() throws Exception {
 
-
-	  while(!oserver.isConnected()) Thread.sleep(100);
+    while (!oserver.isConnected())
+      Thread.sleep(100);
 
     OracleServer oserver2 = createOracle(9914);
     OracleServer oserver3 = createOracle(9915);
 
     oserver2.start();
-	  while(!oserver2.isConnected()) Thread.sleep(100);
+    while (!oserver2.isConnected())
+      Thread.sleep(100);
 
-	  oserver3.start();
-		while(!oserver3.isConnected()) Thread.sleep(100);
+    oserver3.start();
+    while (!oserver3.isConnected())
+      Thread.sleep(100);
 
     OracleClient client = OracleClient.getInstance(config);
 
     long timestamp;
-    for(long i = 0; i <= 5; i++) {
+    for (long i = 0; i <= 5; i++) {
       timestamp = client.getTimestamp();
       assertEquals(i, timestamp);
     }
 
-
-	  assertTrue(client.getOracle().endsWith("9913"));
+    assertTrue(client.getOracle().endsWith("9913"));
 
     oserver.stop();
 
     Thread.sleep(2000);
     assertEquals(1000, client.getTimestamp());
-	  assertTrue(client.getOracle().endsWith("9914"));
+    assertTrue(client.getOracle().endsWith("9914"));
 
     oserver2.stop();
 
     Thread.sleep(2000);
     assertEquals(2000, client.getTimestamp());
-	  assertTrue(client.getOracle().endsWith("9915"));
+    assertTrue(client.getOracle().endsWith("9915"));
 
     oserver3.stop();
   }
 
-	@Test
-	public void singleOracle_goesAwayAndComesBack() throws Exception {
+  @Test
+  public void singleOracle_goesAwayAndComesBack() throws Exception {
 
-		while(!oserver.isConnected()) Thread.sleep(100);
+    while (!oserver.isConnected())
+      Thread.sleep(100);
 
-		OracleClient client = OracleClient.getInstance(config);
+    OracleClient client = OracleClient.getInstance(config);
 
-		long timestamp;
-		for(long i = 0; i <= 5; i++) {
-			timestamp = client.getTimestamp();
-			assertEquals(i, timestamp);
-		}
+    long timestamp;
+    for (long i = 0; i <= 5; i++) {
+      timestamp = client.getTimestamp();
+      assertEquals(i, timestamp);
+    }
 
-		oserver.stop();
+    oserver.stop();
 
-	  Thread.sleep(2000);
+    Thread.sleep(2000);
 
-		assertNull(client.getOracle());
+    assertNull(client.getOracle());
 
-		oserver.start();
+    oserver.start();
 
-		while(!oserver.isConnected()) Thread.sleep(100);
+    while (!oserver.isConnected())
+      Thread.sleep(100);
 
-		assertEquals(1000, client.getTimestamp());
+    assertEquals(1000, client.getTimestamp());
 
-		assertTrue(client.getOracle().endsWith("9913"));
+    assertTrue(client.getOracle().endsWith("9913"));
 
-		oserver.stop();
-	}
+    oserver.stop();
+  }
 }
