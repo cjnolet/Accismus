@@ -96,7 +96,7 @@ public class OracleClient {
 
     /**
      * It's possible an Oracle has gone into a bad state. We don't just want to rely on the server telling us that it's not
-     * the leader- especially in cases where it's possible the server connection to the server could take a long time to respond.
+     * the leader- especially in cases where it's possible the connection to the server could take a long time to respond.
      */
     @Override
     public void childEvent(CuratorFramework curatorFramework, PathChildrenCacheEvent pathChildrenCacheEvent) throws Exception {
