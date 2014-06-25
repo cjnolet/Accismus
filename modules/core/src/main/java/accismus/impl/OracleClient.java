@@ -112,7 +112,8 @@ public class OracleClient {
 
             // if a new leader has been elected and we haven't connected to it yet, let's do that now
             if (pathChildrenCacheEvent.getType().equals(PathChildrenCacheEvent.Type.CHILD_ADDED)) {
-              if (!(leader.getId().equals(currentLeader.getId()))) {
+              if (!leader.getId().equals(currentLeader.getId())) {
+                log.debug("Received event that leader changed.");
                 assignLeaderAndDisconnect(leader);
               }
 
@@ -120,6 +121,11 @@ public class OracleClient {
             } else if (pathChildrenCacheEvent.getType().equals(PathChildrenCacheEvent.Type.CHILD_REMOVED) && !leader.isLeader()) {
               assignLeaderAndDisconnect(leader);
               log.debug("There are no oracles awaiting connections");
+            } else if(pathChildrenCacheEvent.getType().equals(PathChildrenCacheEvent.Type.CHILD_REMOVED)) {
+              if (!leader.getId().equals(currentLeader.getId())) {
+                log.debug("Received event that leader changed.");
+                assignLeaderAndDisconnect(leader);
+              }
             }
           }
         }
@@ -153,6 +159,7 @@ public class OracleClient {
               start = client.getTimestamps(config.getAccismusInstanceID(), request.size());
               break;
             } catch (TTransportException tte) {
+              log.info("Oracle connection lost. Retrying...");
               close(client);
               client = loadLeaderAndConnect();
             } catch (TException e) {
@@ -187,16 +194,18 @@ public class OracleClient {
 
       long ebackoff = 100; // exponential backoff so we aren't hammering zookeeper.
       while (currentLeader == null || !currentLeader.isLeader()) {
-        getLeader();
-        ebackoff *= ebackoff;
-        if (ebackoff > 5000)
-          ebackoff = 100;
 
         try {
           Thread.sleep(ebackoff);
         } catch (InterruptedException e) {
           throw new RuntimeException(e);
         }
+
+        getLeader();
+        ebackoff *= ebackoff;
+        if (ebackoff > 5000)
+          ebackoff = 100;
+
       }
 
       log.debug("Connecting to new leader: " + currentLeader);
@@ -210,20 +219,31 @@ public class OracleClient {
 
     private OracleService.Client connect() throws IOException, KeeperException, InterruptedException, TTransportException {
 
-      log.info("Connecting to oracle at " + currentLeader.getId());
-      String[] hostAndPort = currentLeader.getId().split(":");
 
-      String host = hostAndPort[0];
-      int port = Integer.parseInt(hostAndPort[1]);
-
+      long ebackoff = 100; // exponential backoff so we aren't hammering zookeeper.
       while (true) {
+        log.debug("Connecting to oracle at " + currentLeader.getId());
+        String[] hostAndPort = currentLeader.getId().split(":");
+
+        String host = hostAndPort[0];
+        int port = Integer.parseInt(hostAndPort[1]);
+
         try {
           TTransport transport = new TFastFramedTransport(new TSocket(host, port));
           transport.open();
           TProtocol protocol = new TCompactProtocol(transport);
           OracleService.Client client = new OracleService.Client(protocol);
+          log.info("Connected to oracle at " + currentLeader.getId());
           return client;
         } catch (TTransportException e) {
+
+          // exponential backoff so we don't kill zookeeper
+          Thread.sleep(ebackoff);
+
+          ebackoff *= ebackoff;
+          if (ebackoff > 5000)
+            ebackoff = 100;
+
           loadNextLeader();
         } catch (Exception e) {
           throw new RuntimeException(e);

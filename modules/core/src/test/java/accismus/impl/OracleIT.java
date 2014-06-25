@@ -117,8 +117,12 @@ public class OracleIT extends Base {
     tpool.shutdown();
   }
 
+  /**
+   * If multiple {@link OracleServer} instances are competing leadership and fail, the {@link OracleClient} should
+   * failover to them as they go down and serve up new blocks of timestamps.
+   */
   @Test
-  public void failoverTest() throws Exception {
+  public void failover_newTimestampRequested() throws Exception {
 
     while (!oserver.isConnected())
       Thread.sleep(100);
@@ -159,6 +163,10 @@ public class OracleIT extends Base {
     oserver3.stop();
   }
 
+  /**
+   * If an {@link OracleServer} goes away and comes back, the client should automatically reconnect
+   * and start a new block of timestamps (making sure that no timestamp should ever go backwards).
+   */
   @Test
   public void singleOracle_goesAwayAndComesBack() throws Exception {
 
@@ -190,4 +198,94 @@ public class OracleIT extends Base {
 
     oserver.stop();
   }
+
+  /**
+   * Upon a new leader being elected, the {@link OracleClient} should automatically connect to that oracle without
+   * the need for the client to call getTimestamps()
+   */
+  @Test
+  public void newLeader_oracleReconnectsImmediately() throws Exception {
+
+    while (!oserver.isConnected())
+      Thread.sleep(100);
+
+    OracleServer oserver2 = createOracle(9914);
+    oserver2.start();
+    while (!oserver2.isConnected())
+      Thread.sleep(100);
+
+    OracleClient client = OracleClient.getInstance(config);
+
+    while(client.getOracle() == null) Thread.sleep(100);
+
+    assertTrue(client.getOracle().endsWith("9913"));
+
+    oserver.stop();
+
+    while(oserver.isConnected()) Thread.sleep(200);
+
+    Thread.sleep(3000);
+    assertTrue(client.getOracle().endsWith("9914"));
+
+    oserver2.stop();
+  }
+
+  @Test
+  public void threadFailoverTest() throws Exception {
+
+    int numThreads = 20;
+    int numTimes = 100;
+
+    List<Long> output = Collections.synchronizedList(new ArrayList<Long>());
+    ExecutorService tpool = Executors.newFixedThreadPool(numThreads);
+    CountDownLatch cdl = new CountDownLatch(numThreads);
+
+    OracleServer oserver2 = createOracle(9914);
+
+    oserver2.start();
+    while (!oserver2.isConnected())
+      Thread.sleep(100);
+
+    OracleServer oserver3 = createOracle(9915);
+
+    oserver3.start();
+    while (!oserver3.isConnected())
+      Thread.sleep(100);
+
+    for (int i = 0; i < numThreads; i++) {
+      tpool.execute(new TimestampFetcher(numTimes, config, output, cdl));
+
+      if(i == 10)
+        oserver.stop();
+    }
+
+    cdl.await();
+
+    TreeSet<Long> ts1 = new TreeSet<Long>(output);
+
+    assertEquals(numThreads * numTimes, ts1.size());
+
+    cdl = new CountDownLatch(numThreads);
+    output.clear();
+
+    for (int i = 0; i < numThreads; i++) {
+      tpool.execute(new TimestampFetcher(numTimes, config, output, cdl));
+
+      if(i == 5)
+        oserver2.stop();
+    }
+
+    cdl.await();
+
+    TreeSet<Long> ts2 = new TreeSet<Long>(output);
+
+    assertEquals(numThreads * numTimes, ts2.size());
+    assertTrue(ts1.last() < ts2.first());
+
+    tpool.shutdown();
+    oserver3.stop();
+  }
+
+
+
 }

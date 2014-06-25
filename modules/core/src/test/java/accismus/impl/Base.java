@@ -53,7 +53,7 @@ public class Base {
   protected static AtomicInteger next = new AtomicInteger();
   
   protected static Instance instance;
-  
+
   protected Configuration config;
   protected Connector conn;
   protected String table;
@@ -105,12 +105,12 @@ public class Base {
 
   @Before
   public void setup() throws Exception {
-    
+
     conn = instance.getConnector("root", new PasswordToken(secret));
-    
+
     table = "table" + next.getAndIncrement();
     zkn = "/test" + next.getAndIncrement();
-    
+
     Operations.initialize(conn, zkn, table);
     Properties wprops = new Properties();
     wprops.setProperty(TransactionConfiguration.ROLLBACK_TIME_PROP, "5000");
@@ -118,7 +118,7 @@ public class Base {
     Operations.updateObservers(conn, zkn, getObservers(), getWeakObservers());
 
     config = new Configuration(zk, zkn, conn, OracleProperties.ORACLE_DEFAULT_PORT);
-    
+
     oserver = createOracle(9913);
     oserver.start();
   }
@@ -127,12 +127,13 @@ public class Base {
     config = new Configuration(zk, zkn, conn, port);
     return new OracleServer(config);
   }
-  
+
   @After
   public void tearDown() throws Exception {
     conn.tableOperations().delete(table);
     oserver.stop();
-	      config.getSharedResources().close();
+
+  config.getSharedResources().close();
   }
 
   protected void printTable() throws Exception {

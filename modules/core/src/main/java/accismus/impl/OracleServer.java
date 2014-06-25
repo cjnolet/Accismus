@@ -24,6 +24,7 @@ import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.framework.imps.CuratorFrameworkState;
 import org.apache.curator.framework.recipes.leader.LeaderSelector;
 import org.apache.curator.framework.recipes.leader.LeaderSelectorListenerAdapter;
+import org.apache.curator.framework.state.ConnectionState;
 import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.thrift.TException;
 import org.apache.thrift.TProcessor;
@@ -116,7 +117,7 @@ public class OracleServer extends LeaderSelectorListenerAdapter implements Oracl
 
   @VisibleForTesting
   public boolean isConnected() {
-    return cnxnListener.isConnected();
+    return (started && cnxnListener.isConnected());
   }
 
   private InetSocketAddress startServer() throws TTransportException {
@@ -206,5 +207,12 @@ public class OracleServer extends LeaderSelectorListenerAdapter implements Oracl
 
     while (started)
       Thread.sleep(100); // if leadership is lost, then curator will interrup the thread that called this method
+  }
+
+  @Override public void stateChanged(CuratorFramework client, ConnectionState newState) {
+    super.stateChanged(client, newState);
+
+    if(newState.equals(ConnectionState.RECONNECTED))
+      leaderSelector.requeue();
   }
 }
