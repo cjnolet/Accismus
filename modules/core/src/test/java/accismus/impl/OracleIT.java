@@ -199,36 +199,6 @@ public class OracleIT extends Base {
     oserver.stop();
   }
 
-  /**
-   * Upon a new leader being elected, the {@link OracleClient} should automatically connect to that oracle without
-   * the need for the client to call getTimestamps()
-   */
-  @Test
-  public void newLeader_oracleReconnectsImmediately() throws Exception {
-
-    while (!oserver.isConnected())
-      Thread.sleep(100);
-
-    OracleServer oserver2 = createOracle(9914);
-    oserver2.start();
-    while (!oserver2.isConnected())
-      Thread.sleep(100);
-
-    OracleClient client = OracleClient.getInstance(config);
-
-    while(client.getOracle() == null) Thread.sleep(100);
-
-    assertTrue(client.getOracle().endsWith("9913"));
-
-    oserver.stop();
-
-    while(oserver.isConnected()) Thread.sleep(200);
-
-    Thread.sleep(3000);
-    assertTrue(client.getOracle().endsWith("9914"));
-
-    oserver2.stop();
-  }
 
   @Test
   public void threadFailoverTest() throws Exception {
@@ -285,7 +255,4 @@ public class OracleIT extends Base {
     tpool.shutdown();
     oserver3.stop();
   }
-
-
-
 }

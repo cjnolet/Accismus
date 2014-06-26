@@ -127,7 +127,7 @@ public class OracleServer extends LeaderSelectorListenerAdapter implements Oracl
     TNonblockingServerSocket socket = new TNonblockingServerSocket(addr);
 
     THsHaServer.Args serverArgs = new THsHaServer.Args(socket);
-    serverArgs.maxReadBufferBytes = Constants.THRIFT_MAX_READ_BUFFER_SIZE;
+//    serverArgs.maxReadBufferBytes = Constants.THRIFT_MAX_READ_BUFFER_SIZE;
     TProcessor processor = new OracleService.Processor<OracleService.Iface>(this);
     serverArgs.processor(processor);
     serverArgs.inputProtocolFactory(new TCompactProtocol.Factory());

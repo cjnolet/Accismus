@@ -86,7 +86,7 @@ public class OracleClient {
 
         leaderSelector = new LeaderSelector(curatorFramework, config.getZookeeperRoot() + Constants.Zookeeper.ORACLE_SERVER, this);
 
-        client = loadLeaderAndConnect();
+        connect();
         doWork();
 
       } catch (Exception e) {
@@ -102,41 +102,9 @@ public class OracleClient {
     public void childEvent(CuratorFramework curatorFramework, PathChildrenCacheEvent pathChildrenCacheEvent) throws Exception {
 
       if (pathChildrenCacheEvent.getType().toString().startsWith("CHILD")) {
-
-        // if we've never seen a leader, the connect method will spin gears until one is found.
-        if (currentLeader != null) {
-          synchronized (currentLeader) { // just to make sure the connect method isn't modifying the currentLeader while this one is
-
-            Participant leader = leaderSelector
-                .getLeader();  // if the leader has changed, we will be making this call again- this shouldn't happen too often unless there's a problem
-
-            // if a new leader has been elected and we haven't connected to it yet, let's do that now
-            if (pathChildrenCacheEvent.getType().equals(PathChildrenCacheEvent.Type.CHILD_ADDED)) {
-              if (!leader.getId().equals(currentLeader.getId())) {
-                log.debug("Received event that leader changed.");
-                assignLeaderAndDisconnect(leader);
-              }
-
-              // if a leader was removed and we've lost all leaders, close the connection and wait until a leader becomes available
-            } else if (pathChildrenCacheEvent.getType().equals(PathChildrenCacheEvent.Type.CHILD_REMOVED) && !leader.isLeader()) {
-              assignLeaderAndDisconnect(leader);
-              log.debug("There are no oracles awaiting connections");
-            } else if(pathChildrenCacheEvent.getType().equals(PathChildrenCacheEvent.Type.CHILD_REMOVED)) {
-              if (!leader.getId().equals(currentLeader.getId())) {
-                log.debug("Received event that leader changed.");
-                assignLeaderAndDisconnect(leader);
-              }
-            }
-          }
+        synchronized (this) {
+          currentLeader = leaderSelector.getLeader();
         }
-      }
-    }
-
-    private void assignLeaderAndDisconnect(Participant leader) {
-      if (currentLeader.isLeader()) {
-        currentLeader = leader;
-        if (client != null)
-          close(client);  // force reconnect logic to spin gears until leader appears
       }
     }
 
@@ -156,12 +124,26 @@ public class OracleClient {
           while (true) {
 
             try {
-              start = client.getTimestamps(config.getAccismusInstanceID(), request.size());
+              String currentLeaderId;
+              OracleService.Client localClient;
+              synchronized (this) {
+                currentLeaderId = getOracle();
+                localClient = client;
+              }
+
+              start = localClient.getTimestamps(config.getAccismusInstanceID(), request.size());
+
+              String leaderId = getOracle();
+              if(leaderId != null && !leaderId.equals(currentLeaderId)) {
+                reconnect();
+                continue;
+              }
+
               break;
+
             } catch (TTransportException tte) {
               log.info("Oracle connection lost. Retrying...");
-              close(client);
-              client = loadLeaderAndConnect();
+                reconnect();
             } catch (TException e) {
               e.printStackTrace();
             }
@@ -212,14 +194,14 @@ public class OracleClient {
 
     }
 
-    private OracleService.Client loadLeaderAndConnect() throws IOException, KeeperException, InterruptedException, TTransportException {
-      loadNextLeader();
-      return connect();
+    private synchronized void reconnect() throws InterruptedException, TTransportException, KeeperException, IOException {
+      close(client);
+      connect();
     }
 
-    private OracleService.Client connect() throws IOException, KeeperException, InterruptedException, TTransportException {
+    private synchronized void connect() throws IOException, KeeperException, InterruptedException, TTransportException {
 
-
+      loadNextLeader();
       long ebackoff = 100; // exponential backoff so we aren't hammering zookeeper.
       while (true) {
         log.debug("Connecting to oracle at " + currentLeader.getId());
@@ -232,9 +214,9 @@ public class OracleClient {
           TTransport transport = new TFastFramedTransport(new TSocket(host, port));
           transport.open();
           TProtocol protocol = new TCompactProtocol(transport);
-          OracleService.Client client = new OracleService.Client(protocol);
-          log.info("Connected to oracle at " + currentLeader.getId());
-          return client;
+          client = new OracleService.Client(protocol);
+          log.info("Connected to oracle at " + getOracle());
+          break;
         } catch (TTransportException e) {
 
           // exponential backoff so we don't kill zookeeper
