@@ -68,6 +68,8 @@ public class OracleClient {
     private OracleService.Client client;
     private PathChildrenCache pathChildrenCache;
 
+    private TTransport transport;
+
     public void run() {
 
       try {
@@ -143,7 +145,7 @@ public class OracleClient {
 
             } catch (TTransportException tte) {
               log.info("Oracle connection lost. Retrying...");
-                reconnect();
+              reconnect();
             } catch (TException e) {
               e.printStackTrace();
             }
@@ -160,6 +162,51 @@ public class OracleClient {
         }
       }
     }
+
+    private synchronized void connect() throws IOException, KeeperException, InterruptedException, TTransportException {
+
+      loadNextLeader();
+      long ebackoff = 100; // exponential backoff so we aren't hammering zookeeper.
+      while (true) {
+        log.debug("Connecting to oracle at " + currentLeader.getId());
+        String[] hostAndPort = currentLeader.getId().split(":");
+
+        String host = hostAndPort[0];
+        int port = Integer.parseInt(hostAndPort[1]);
+
+        try {
+          transport = new TFastFramedTransport(new TSocket(host, port));
+          transport.open();
+          TProtocol protocol = new TCompactProtocol(transport);
+          client = new OracleService.Client(protocol);
+          log.info("Connected to oracle at " + getOracle());
+          break;
+        } catch (TTransportException e) {
+
+          // exponential backoff so we don't kill zookeeper
+          Thread.sleep(ebackoff);
+
+          ebackoff *= ebackoff;
+          if (ebackoff > 5000)
+            ebackoff = 100;
+
+          loadNextLeader();
+        } catch (Exception e) {
+          throw new RuntimeException(e);
+        }
+      }
+    }
+
+    private synchronized void reconnect() throws InterruptedException, TTransportException, KeeperException, IOException {
+      close(client);
+      connect();
+    }
+
+
+    private void close(OracleService.Client client) {
+      transport.close();
+    }
+
 
     private void getLeader() {
       try {
@@ -192,51 +239,6 @@ public class OracleClient {
 
       log.debug("Connecting to new leader: " + currentLeader);
 
-    }
-
-    private synchronized void reconnect() throws InterruptedException, TTransportException, KeeperException, IOException {
-      close(client);
-      connect();
-    }
-
-    private synchronized void connect() throws IOException, KeeperException, InterruptedException, TTransportException {
-
-      loadNextLeader();
-      long ebackoff = 100; // exponential backoff so we aren't hammering zookeeper.
-      while (true) {
-        log.debug("Connecting to oracle at " + currentLeader.getId());
-        String[] hostAndPort = currentLeader.getId().split(":");
-
-        String host = hostAndPort[0];
-        int port = Integer.parseInt(hostAndPort[1]);
-
-        try {
-          TTransport transport = new TFastFramedTransport(new TSocket(host, port));
-          transport.open();
-          TProtocol protocol = new TCompactProtocol(transport);
-          client = new OracleService.Client(protocol);
-          log.info("Connected to oracle at " + getOracle());
-          break;
-        } catch (TTransportException e) {
-
-          // exponential backoff so we don't kill zookeeper
-          Thread.sleep(ebackoff);
-
-          ebackoff *= ebackoff;
-          if (ebackoff > 5000)
-            ebackoff = 100;
-
-          loadNextLeader();
-        } catch (Exception e) {
-          throw new RuntimeException(e);
-        }
-      }
-    }
-
-    private void close(OracleService.Client client) {
-      // TODO is this correct way to close?
-      client.getInputProtocol().getTransport().close();
-      client.getOutputProtocol().getTransport().close();
     }
 
     /**

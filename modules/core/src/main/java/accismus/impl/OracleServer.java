@@ -127,7 +127,7 @@ public class OracleServer extends LeaderSelectorListenerAdapter implements Oracl
     TNonblockingServerSocket socket = new TNonblockingServerSocket(addr);
 
     THsHaServer.Args serverArgs = new THsHaServer.Args(socket);
-//    serverArgs.maxReadBufferBytes = Constants.THRIFT_MAX_READ_BUFFER_SIZE;
+    serverArgs.maxReadBufferBytes = Constants.THRIFT_MAX_READ_BUFFER_SIZE;
     TProcessor processor = new OracleService.Processor<OracleService.Iface>(this);
     serverArgs.processor(processor);
     serverArgs.inputProtocolFactory(new TCompactProtocol.Factory());
@@ -207,7 +207,7 @@ public class OracleServer extends LeaderSelectorListenerAdapter implements Oracl
     }
 
     while (started)
-      Thread.sleep(100); // if leadership is lost, then curator will interrup the thread that called this method
+      Thread.sleep(100); // if leadership is lost, then curator will interrupt the thread that called this method
   }
 
   @Override public void stateChanged(CuratorFramework client, ConnectionState newState) {
