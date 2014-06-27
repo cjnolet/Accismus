@@ -16,14 +16,6 @@
  */
 package org.fluo.impl;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicLong;
-
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.framework.recipes.leader.LeaderSelector;
@@ -38,10 +30,17 @@ import org.apache.thrift.transport.TSocket;
 import org.apache.thrift.transport.TTransport;
 import org.apache.thrift.transport.TTransportException;
 import org.apache.zookeeper.KeeperException;
+import org.fluo.impl.thrift.OracleService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.fluo.impl.thrift.OracleService;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Connects to an oracle to retrieve timestamps. If mutliple oracle servers are run, it will automatically
@@ -224,12 +223,12 @@ public class OracleClient {
   }
 
 	/**
-	 * Create an instance of an OracleClient and cache it by the Accismus instance id`
+	 * Create an instance of an OracleClient and cache it by the Fluo instance id
 	 * @param config
 	 * @return
 	 */
   public static synchronized OracleClient getInstance(Configuration config) {
-    // this key differintiates between different instances of Accumulo and Accismus
+    // this key differintiates between different instances of Accumulo and Fluo
     String key = config.getFluoInstanceID();
 
     OracleClient client = clients.get(key);

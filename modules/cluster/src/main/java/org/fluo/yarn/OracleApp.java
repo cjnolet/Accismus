@@ -16,30 +16,23 @@
  */
 package org.fluo.yarn;
 
-import java.io.File;
-import java.util.Properties;
-
+import com.beust.jcommander.JCommander;
 import org.apache.commons.configuration.ConfigurationException;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.yarn.conf.YarnConfiguration;
-import org.apache.twill.api.ResourceSpecification;
+import org.apache.twill.api.*;
 import org.apache.twill.api.ResourceSpecification.SizeUnit;
-import org.apache.twill.api.TwillApplication;
-import org.apache.twill.api.TwillController;
-import org.apache.twill.api.TwillPreparer;
-import org.apache.twill.api.TwillRunnerService;
-import org.apache.twill.api.TwillSpecification;
 import org.apache.twill.api.TwillSpecification.Builder.MoreFile;
 import org.apache.twill.yarn.YarnTwillRunnerService;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import org.fluo.api.config.OracleProperties;
 import org.fluo.cluster.util.Logging;
 import org.fluo.impl.Configuration;
 import org.fluo.tools.InitializeTool;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import com.beust.jcommander.JCommander;
+import java.io.File;
+import java.util.Properties;
 
 /** Tool to start a Fluo oracle in YARN
  */
@@ -57,7 +50,7 @@ public class OracleApp implements TwillApplication {
   public TwillSpecification configure() {   
     int maxMemoryMB = Integer.parseInt(props.getProperty(OracleProperties.ORACLE_MAX_MEMORY_PROP, "256"));
     
-    log.info("Starting an org.fluo.accismus oracle with "+maxMemoryMB+"MB of memory");
+    log.info("Starting an org.fluo oracle with "+maxMemoryMB+"MB of memory");
     
     ResourceSpecification oracleResources = ResourceSpecification.Builder.with()
         .setVirtualCores(1)

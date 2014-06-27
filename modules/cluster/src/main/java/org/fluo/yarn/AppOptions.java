@@ -20,8 +20,8 @@ import com.beust.jcommander.Parameter;
 
 public class AppOptions {
   
-  @Parameter(names = "-fluo-home", description = "Location of org.fluo.accismus home", required = true)
-  private String accismusHome;
+  @Parameter(names = "-fluo-home", description = "Location of org.fluo home", required = true)
+  private String fluoHome;
 
   @Parameter(names = "-hadoop-prefix", description = "Location of hadoop prefix", required = true)
   private String hadoopPrefix;
@@ -30,7 +30,7 @@ public class AppOptions {
   public boolean help;
   
   public String getFluoHome() {
-    return accismusHome;
+    return fluoHome;
   }
   
   public String getHadoopPrefix() {

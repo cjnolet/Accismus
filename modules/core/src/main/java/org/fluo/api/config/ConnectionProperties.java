@@ -24,7 +24,7 @@ import java.util.Properties;
 import java.util.Set;
 
 /**
- * The class helps create a properties object with the key/values required to connect to an Accismus instance.
+ * The class helps create a properties object with the key/values required to connect to an Fluo instance.
  */
 public class ConnectionProperties extends Properties {
   
