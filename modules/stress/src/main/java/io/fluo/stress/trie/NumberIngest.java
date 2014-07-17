@@ -16,13 +16,10 @@
  */
 package io.fluo.stress.trie;
 
-import java.io.IOException;
-import java.util.Date;
-import java.util.Iterator;
-import java.util.Map.Entry;
-import java.util.Properties;
-import java.util.Random;
-
+import io.fluo.api.LoaderExecutor;
+import io.fluo.api.config.InitializationProperties;
+import io.fluo.api.config.LoaderExecutorProperties;
+import io.fluo.core.util.PropertyUtil;
 import org.apache.commons.configuration.ConfigurationException;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataOutputStream;
@@ -44,10 +41,12 @@ import org.apache.hadoop.mapred.RunningJob;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.fluo.api.LoaderExecutor;
-import io.fluo.api.config.InitializationProperties;
-import io.fluo.api.config.LoaderExecutorProperties;
-import io.fluo.core.util.PropertyUtil;
+import java.io.IOException;
+import java.util.Date;
+import java.util.Iterator;
+import java.util.Map.Entry;
+import java.util.Properties;
+import java.util.Random;
 
 /** MapReduce pipeline that ingests random numbers into Fluo, determines a unique set numbers,
  * and counts the number of unique numbers in that set.
@@ -56,20 +55,20 @@ public class NumberIngest {
   
   private static Logger log = LoggerFactory.getLogger(NumberIngest.class);
   
-  public static class IngestMapper extends MapReduceBase 
+  public static class IngestMapper extends MapReduceBase
       implements Mapper<LongWritable, Text, LongWritable, IntWritable> {
     
     private final static IntWritable one = new IntWritable(1);
     private static LoaderExecutor le;
     private static int nodeSize;
     
-    public void configure(JobConf job) {      
+    public void configure(JobConf job) {
       InitializationProperties props = new InitializationProperties();
-      props.setZookeepers(job.get("fluo.zookeeper.connect"));
-      props.setZookeeperRoot(job.get("fluo.zookeeper.root"));
-      props.setAccumuloInstance(job.get("fluo.accumulo.instance"));
-      props.setAccumuloUser(job.get("fluo.accumulo.user"));
-      props.setAccumuloPassword(job.get("fluo.accumulo.password"));
+      props.setZookeepers(job.get("io.fluo.zookeeper.connect"));
+      props.setZookeeperRoot(job.get("io.fluo.zookeeper.root"));
+      props.setAccumuloInstance(job.get("io.fluo.accumulo.instance"));
+      props.setAccumuloUser(job.get("io.fluo.accumulo.user"));
+      props.setAccumuloPassword(job.get("io.fluo.accumulo.password"));
      
       nodeSize = job.getInt("trie.node.size", 4);
       
@@ -199,7 +198,7 @@ public class NumberIngest {
     ingestConf.setReducerClass(NumberIngest.UniqueReducer.class);
     
     FileInputFormat.setInputPaths(ingestConf, new Path(testDir+"/input/"));
-    FileOutputFormat.setOutputPath(ingestConf, new Path(testDir+"/unique/"));
+    FileOutputFormat.setOutputPath(ingestConf, new Path(testDir + "/unique/"));
     
     RunningJob ingestJob = JobClient.runJob(ingestConf);
     ingestJob.waitForCompletion();
@@ -213,7 +212,7 @@ public class NumberIngest {
       countConf.setMapperClass(NumberIngest.CountMapper.class);
       countConf.setReducerClass(NumberIngest.CountReducer.class);
       
-      FileInputFormat.setInputPaths(countConf, new Path(testDir+"/unique/"));
+      FileInputFormat.setInputPaths(countConf, new Path(testDir + "/unique/"));
       FileOutputFormat.setOutputPath(countConf, new Path(testDir+"/output/"));
       
       RunningJob countJob = JobClient.runJob(countConf);

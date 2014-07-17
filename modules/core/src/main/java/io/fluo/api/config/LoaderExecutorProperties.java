@@ -16,13 +16,13 @@
  */
 package io.fluo.api.config;
 
+import io.fluo.api.LoaderExecutor;
+
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.Properties;
 import java.util.concurrent.TimeUnit;
-
-import io.fluo.api.LoaderExecutor;
 
 /**
  * This class helps setting the properties need to create a {@link LoaderExecutor}
@@ -30,8 +30,8 @@ import io.fluo.api.LoaderExecutor;
 public class LoaderExecutorProperties extends ConnectionProperties implements TransactionConfiguration {
 
   private static final long serialVersionUID = 1L;
-  public static final String NUM_THREADS_PROP = "fluo.loader.executor.numThreads";
-  public static final String QUEUE_SIZE_PROP = "fluo.loader.executor.queueSize";
+  public static final String NUM_THREADS_PROP = "io.fluo.loader.executor.numThreads";
+  public static final String QUEUE_SIZE_PROP = "io.fluo.loader.executor.queueSize";
   
   public LoaderExecutorProperties() {
     super();

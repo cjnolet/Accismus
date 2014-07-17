@@ -10,8 +10,8 @@ public class OracleProperties extends ConnectionProperties {
  
   private static final long serialVersionUID = 1L;
  
-  public static final String ORACLE_PORT_PROP = "fluo.oracle.port";
-  public static final String ORACLE_MAX_MEMORY_PROP = "fluo.oracle.max.memory.mb";
+  public static final String ORACLE_PORT_PROP = "io.fluo.oracle.port";
+  public static final String ORACLE_MAX_MEMORY_PROP = "io.fluo.oracle.max.memory.mb";
 
   public static final int ORACLE_DEFAULT_PORT = 9913;
   

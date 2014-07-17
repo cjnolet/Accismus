@@ -32,13 +32,13 @@ public class ConnectionProperties extends Properties {
   
   private static final long serialVersionUID = 1L;
 
-  public static final String ACCUMULO_PASSWORD_PROP = "fluo.accumulo.password";
-  public static final String ACCUMULO_USER_PROP = "fluo.accumulo.user";
-  public static final String ACCUMULO_INSTANCE_PROP = "fluo.accumulo.instance";
+  public static final String ACCUMULO_PASSWORD_PROP = "io.fluo.accumulo.password";
+  public static final String ACCUMULO_USER_PROP = "io.fluo.accumulo.user";
+  public static final String ACCUMULO_INSTANCE_PROP = "io.fluo.accumulo.instance";
 
-  public static final String ZOOKEEPER_ROOT_PROP = "fluo.zookeeper.root";
-  public static final String ZOOKEEPER_TIMEOUT_PROP = "fluo.zookeeper.timeout";
-  public static final String ZOOKEEPER_CONNECT_PROP = "fluo.zookeeper.connect";
+  public static final String ZOOKEEPER_ROOT_PROP = "io.fluo.zookeeper.root";
+  public static final String ZOOKEEPER_TIMEOUT_PROP = "io.fluo.zookeeper.timeout";
+  public static final String ZOOKEEPER_CONNECT_PROP = "io.fluo.zookeeper.connect";
   
   public ConnectionProperties() {
     super(Configuration.getDefaultProperties());

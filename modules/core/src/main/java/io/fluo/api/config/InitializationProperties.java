@@ -28,9 +28,9 @@ import java.util.Properties;
 public class InitializationProperties extends WorkerProperties {
   private static final long serialVersionUID = 1L;
 
-  public static final String CLEAR_ZOOKEEPER_PROP = "fluo.init.zookeeper.clear";
-  public static final String TABLE_PROP = "fluo.init.accumulo.table";
-  public static final String CLASSPATH_PROP = "fluo.init.accumulo.classpath";
+  public static final String CLEAR_ZOOKEEPER_PROP = "io.fluo.init.zookeeper.clear";
+  public static final String TABLE_PROP = "io.fluo.init.accumulo.table";
+  public static final String CLASSPATH_PROP = "io.fluo.init.accumulo.classpath";
 
   private void setDefaults() {
     setDefault(CLEAR_ZOOKEEPER_PROP, "false");
